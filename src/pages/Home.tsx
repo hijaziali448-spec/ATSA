@@ -1,10 +1,41 @@
-import { Zap, Shield, CheckCircle, Instagram, MapPin } from 'lucide-react';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { products } from '../data/products';
+import { Zap, Shield, CheckCircle, Instagram, MapPin, LogOut, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { supabase, Product } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Home() {
   const [showAllProducts, setShowAllProducts] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const loadProducts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error loading products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
   const displayedProducts = showAllProducts ? products : products.slice(0, 3);
 
   return (
@@ -16,11 +47,27 @@ export function Home() {
               <img src="/dfefwe.png" alt="ATSA Logo" className="w-14 h-14 object-contain" style={{mixBlendMode: 'lighten'}} />
               <span className="text-xl font-bold">ATSA</span>
             </div>
-            <div className="hidden md:flex gap-3">
+            <div className="hidden md:flex gap-3 items-center">
               <a href="#products" className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition">Products</a>
               <a href="#services" className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition">Services</a>
               <a href="#materials" className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition">Materials</a>
               <a href="#contact" className="px-4 py-2 rounded-lg bg-white text-[#3d4f5c] hover:bg-gray-100 transition font-semibold shadow-md">Contact</a>
+              {user ? (
+                <>
+                  {profile?.is_admin && (
+                    <Link to="/admin" className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition flex items-center gap-2">
+                      <User size={18} />
+                      Admin
+                    </Link>
+                  )}
+                  <button onClick={handleSignOut} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition flex items-center gap-2">
+                    <LogOut size={18} />
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <Link to="/signin" className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition">Sign In</Link>
+              )}
             </div>
           </div>
         </nav>
@@ -52,24 +99,34 @@ export function Home() {
         }}></div>
         <div className="container mx-auto px-6 relative z-10">
           <h2 className="text-3xl font-bold text-[#3d4f5c] mb-12 text-center">Our Work</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {displayedProducts.map(product => (
-              <Link key={product.id} to={`/product/${product.slug}`} className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-700/80 to-slate-900/80 backdrop-blur-xl rounded-lg transform transition-transform group-hover:scale-105"></div>
-                <div className="relative bg-white/90 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition">
-                  <img src={product.imageUrl} alt={product.title} className="w-full h-64 object-cover" />
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold text-[#3d4f5c] mb-2">{product.title}</h3>
-                    <p className="text-gray-600 line-clamp-3">{product.description}</p>
-                    <div className="mt-4 text-[#3d4f5c] font-semibold group-hover:underline">
-                      Learn More →
+          {loading ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600">Loading products...</p>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600">No products available yet.</p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {displayedProducts.map(product => (
+                <div key={product.id} className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-slate-700/80 to-slate-900/80 backdrop-blur-xl rounded-lg transform transition-transform group-hover:scale-105"></div>
+                  <div className="relative bg-white/90 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition">
+                    <img src={product.image} alt={product.name} className="w-full h-64 object-cover" />
+                    <div className="p-6">
+                      <h3 className="text-xl font-bold text-[#3d4f5c] mb-2">{product.name}</h3>
+                      <p className="text-gray-600 text-sm">{product.category}</p>
+                      {product.show_price && (
+                        <p className="text-lg font-semibold text-[#3d4f5c] mt-2">${product.price}</p>
+                      )}
                     </div>
                   </div>
                 </div>
-              </Link>
-            ))}
-          </div>
-          {!showAllProducts && (
+              ))}
+            </div>
+          )}
+          {!showAllProducts && products.length > 3 && (
             <div className="text-center mt-12">
               <button
                 onClick={() => setShowAllProducts(true)}
